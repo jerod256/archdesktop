@@ -92,22 +92,6 @@ while true; do
 	fi
 done
 
-### 5. cryptsetup passphrase, will be used to decrypt root drive
-while true; do
-	echo -n "Enter encryption passphrase"
-	read -s CRYPTPASS1
-
-	echo -n "Verify passphrase"
-	read -s CRYPTPASS2
-
-	if [ "$PASS1" = "$PASS2" ]; then
-		echo "Passphrase successfully set."
-		break
-	else
-		echo "Match failed. Try again."
-	fi
-done
-
 # mount the root volume
 echo "creating root filesystem..."
 mkfs.ext4 /dev/${default_install_name}
@@ -152,6 +136,11 @@ chroot /mnt locale-gen
 echo "LANG=en_US.UTF-8" > /mnt/etc/local.conf
 
 chroot /mnt systemctl enable dhcpcd.service
+chroot /mnt systemctl disable nftables.service
+chroot /mnt systemctl disable iptables.service
+chroot /mnt systemctl enable ufw.service
+chroot /mnt systemctl enable greetd.service
+
 
 ### setup primary user
 chroot /mnt useradd -m -G wheel,audio,video,cdrom,optical,storage,kvm,input,plugdev,users,bluetooth,_pipewire -s /bin/bash $USER
@@ -164,6 +153,30 @@ chroot /mnt sed -i 's/^# %wheel ALL=(ALL:ALL) ALL/%wheel ALL=(ALL:ALL) ALL/' /et
 cp -rf /install/archdesktop/etc/greetd /mnt/etc/
 
 chroot /mnt mkinitcpio -P
+
+#####################################################
+##### Zen Kernel Installation         ###############
+#####################################################
+#
+### install zen kernel
+chroot /mnt pacman -S linux-zen linux-zen-headers
+### check to ensure linux-zen is in the boot partition
+chroot /mnt mkinitcpio -P
+
+#####################################################
+##### zram swap setup                 ###############
+#####################################################
+#
+### zram setup via udev rule as per arch wiki
+touch /mnt/etc/modules-load.d/zram.conf
+echo "zram" >> /mnt/etc/modules-load.d/zram.conf
+
+touch /mnt/etc/udev/rules.d/99-zram.rules
+cat <<EOF > /mnt/etc/udev/rules.d/99-zram.rules
+ACTION=="add", KERNEL=="zram0", ATTR{initstate}=="0", ATTR{comp_algorithm}="zstd", ATTR{disksize}="4G", TAG+="systemd"
+EOF
+
+echo "/dev/zram0 none swap defaults,discard,pri=100,x-systemd.makefs 0 0" >> /mnt/etc/fstab
 
 #####################################################
 ##### Boot options: limine bootloader ###############
