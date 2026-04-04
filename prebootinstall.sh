@@ -108,7 +108,7 @@ mount /dev/${default_efi_name} /mnt/boot
 
 ### installation of base system and packages
 echo "installing base system..."
-pacstrap -K /mnt base $pkg_base
+pacstrap -K /mnt base linux-zen linux-zen-headers linux-firmware $pkg_base
 
 
 ### generate the filesystem tble
