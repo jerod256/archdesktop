@@ -47,7 +47,7 @@ default_CRYPTPASS="56789"
 #pkg_preinst="parted git"
 #package list for basic system setup
 #pkg_base="base-system cryptsetup efibootmgr nftables sbctl vim git lvm2 grub-x86_64-efi sbsigntool efitools tpm2-tools"
-pkg_base="iptables-nft vim git limine efibootmgr pipewire wireplumber greetd tuigreet ufw base-devel wget curl btop udisks2 dhcpcd dbus"
+pkg_base="iptables-nft vim git limine efibootmgr pipewire wireplumber greetd tuigreet ufw base-devel wget curl btop udisks2 dhcpcd dbus amd-ucode"
 ### for gaming distro adjust package list to:
 ### consider doing away with greetd and tuigreet and use auto start scripts (like xinitrc).
 ### use dhcpcd if desktop and remove connman.
@@ -117,6 +117,7 @@ genfstab -U /mnt >> /mnt/etc/fstab
 ### next I need to replace the boot sector label from the /dev/** to its UUID
 ### first find the UUID
 BOOT_UUID=$(blkid -s UUID -o value /dev/${default_efi_name})
+echo "UUID=$(lsblk -no UUID /dev/vda1) /boot vfat defaults,noatime 0 2" >> /mnt/etc/fstab
 ### next inject the UUID into the UUID
 #sed -i "s|/dev/$default_efi_name|UUID=$BOOT_UUID/g" /mnt/etc/fstab
 
@@ -134,6 +135,7 @@ chroot /mnt hwclock --systohc
 chroot /mnt locale-gen
 ### set locales and languages
 echo "LANG=en_US.UTF-8" > /mnt/etc/local.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
 
 chroot /mnt systemctl enable dhcpcd.service
 chroot /mnt systemctl disable nftables.service
@@ -176,6 +178,8 @@ cat <<EOF > /mnt/etc/udev/rules.d/99-zram.rules
 ACTION=="add", KERNEL=="zram0", ATTR{initstate}=="0", ATTR{comp_algorithm}="zstd", ATTR{disksize}="4G", TAG+="systemd"
 EOF
 
+echo "options zram num_devices=1" > /mnt/etc/modprobe.d/zram.conf
+
 echo "/dev/zram0 none swap defaults,discard,pri=100,x-systemd.makefs 0 0" >> /mnt/etc/fstab
 
 #####################################################
@@ -205,6 +209,7 @@ cp /mnt/usr/share/limine/BOOTX64.EFI /mnt/boot/EFI/limine/
 
 ### then use the efibootmgr tool to make an entry in the BIOS for limine
 efibootmgr --create --label "Arch Linux" --loader '\EFI\limine\BOOTX64.EFI' --disk /dev/${default_efi_name} --part 1
+efibootmgr --create --disk /dev/vda --part 1 --loader /EFI/limine/BOOTX64.EFI --label "Limine"
 
 ### a temporary block of code to make sure entries are properly captured
 echo $PASS1
